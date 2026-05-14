@@ -5,7 +5,7 @@ from datetime import datetime
 from config import REFRESH_INTERVAL, SHIFT_DISPLAY
 from components.styles import inject_css
 from components.charts import (
-    chart_trend, chart_area_heatmap,
+    chart_trend,
     chart_apd_donut, chart_daily_violations,
 )
 from utils.data import fetch_data
@@ -28,7 +28,7 @@ def main():
     inject_css()
     init_refresh()
 
-    summary, shift_compliance, df_trend, df_area, df_viol, is_live = fetch_data()
+    summary, shift_compliance, df_trend, df_viol, is_live = fetch_data()
     now = datetime.now()
 
     # ── HEADER ──
@@ -113,11 +113,7 @@ def main():
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
     # Heatmap + Donut + Bar
-    col_h, col_d, col_b = st.columns([2, 1.2, 1.4])
-    with col_h:
-        st.markdown('<div class="panel"><p class="panel-title">Kepatuhan per <span class="accent">Area × Shift</span></p>', unsafe_allow_html=True)
-        st.plotly_chart(chart_area_heatmap(df_area), use_container_width=True, config={"displayModeBar": False})
-        st.markdown("</div>", unsafe_allow_html=True)
+    col_d, col_b = st.columns([1.2, 1.4])
     with col_d:
         st.markdown('<div class="panel"><p class="panel-title">Jenis <span class="accent">APD</span></p>', unsafe_allow_html=True)
         st.plotly_chart(chart_apd_donut(summary), use_container_width=True, config={"displayModeBar": False})
@@ -167,7 +163,6 @@ def main():
         <tr>
           <td><span style="font-family:'Fira Code';font-size:11px;color:var(--text-sec)">{row['time']}</span></td>
           <td><b>{row['worker']}</b></td>
-          <td>{row['area']}</td>
           <td><span style="font-family:'Fira Code';font-size:11px;color:#00D4FF">{row['shift']}</span></td>
           <td>{apd_tags(row['apd'])}</td>
           <td>{badge_html(row['status'])}</td>
@@ -179,7 +174,7 @@ def main():
     <div class="panel">
       <table class="vtable">
         <thead><tr>
-          <th>Waktu</th><th>Pekerja</th><th>Area (Kamera)</th>
+          <th>Waktu</th><th>Pekerja</th>
           <th>Shift</th><th>APD Dilanggar</th><th>Status</th>
         </tr></thead>
         <tbody>{rows_html}</tbody>

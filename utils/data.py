@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 
-from config import BACKEND_URL, REFRESH_INTERVAL, DEMO_AREAS
+from config import BACKEND_URL, REFRESH_INTERVAL
 from utils.helpers import timestamp_to_shift
 
 
@@ -27,20 +27,6 @@ def make_demo_data():
         })
     df_trend = pd.DataFrame(trend)
 
-    # Per area × shift
-    area_rows = []
-    for area in DEMO_AREAS:
-        for shift in ["PAGI", "SIANG", "MALAM"]:
-            total     = random.randint(20, 60)
-            compliant = random.randint(int(total * 0.60), total)
-            area_rows.append({
-                "area":       area,
-                "shift":      shift,
-                "rate":       round(compliant / total * 100, 1),
-                "violations": total - compliant,
-            })
-    df_area = pd.DataFrame(area_rows)
-
     # ViolationSummary 
     total_v      = random.randint(80, 130)
     verified     = random.randint(40, 70)
@@ -57,7 +43,7 @@ def make_demo_data():
         "overall_compliance":   round(random.uniform(74, 91), 1),
     }
 
-    shift_compliance = df_area.groupby("shift")["rate"].mean().round(1).to_dict()
+    shift_compliance = {"PAGI": 0.0, "SIANG": 0.0, "MALAM": 0.0}
 
     # Violations
     rows = []
@@ -75,7 +61,6 @@ def make_demo_data():
         rows.append({
             "time":   ts.strftime("%d/%m %H:%M"),
             "worker": f"Pekerja-{random.randint(100, 999)}",
-            "area":   random.choice(DEMO_AREAS),
             "shift":  timestamp_to_shift(ts),
             "apd":    "+".join(apd_parts),
             "status": random.choice(["verified","verified","unverified","unverified","false_alarm"]),
@@ -83,8 +68,7 @@ def make_demo_data():
     rows.sort(key=lambda x: x["time"], reverse=True)
     df_viol = pd.DataFrame(rows)
 
-    return summary, shift_compliance, df_trend, df_area, df_viol
-
+    return summary, shift_compliance, df_trend, df_viol
 
 @st.cache_data(ttl=REFRESH_INTERVAL)
 def fetch_data():
@@ -96,7 +80,6 @@ def fetch_data():
       - ViolationResponse (schemas/violation.py)
       - CaptureResponse   (schemas/capture.py)
     Shift dihitung dari created_at karena tidak ada field shift di backend.
-    Area diambil dari captures.camera_location lewat capture_id.
     """
     try:
         r_sum  = requests.get(f"{BACKEND_URL}/api/violations/summary", timeout=3)
@@ -224,8 +207,8 @@ def fetch_data():
             if not df_area.empty else {"PAGI": 0.0, "SIANG": 0.0, "MALAM": 0.0}
         )
 
-        return summary, shift_compliance, df_trend, df_area, df_viol, True
+        return summary, shift_compliance, df_trend, df_viol, True
 
     except Exception:
-        summary, shift_c, df_trend, df_area, df_viol = make_demo_data()
-        return summary, shift_c, df_trend, df_area, df_viol, False
+        summary, shift_c, df_trend, df_viol = make_demo_data()
+        return summary, shift_c, df_trend, df_viol, False

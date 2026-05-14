@@ -38,40 +38,6 @@ def chart_trend(df: pd.DataFrame) -> go.Figure:
     )
     return fig
 
-
-def chart_area_heatmap(df: pd.DataFrame) -> go.Figure:
-    if df.empty:
-        return go.Figure()
-    pivot   = df.pivot_table(index="area", columns="shift", values="rate", aggfunc="mean").round(1)
-    ordered = [s for s in ["PAGI", "SIANG", "MALAM"] if s in pivot.columns]
-    pivot   = pivot[ordered]
-    fig = go.Figure(go.Heatmap(
-        z=pivot.values, x=pivot.columns.tolist(), y=pivot.index.tolist(),
-        colorscale=[[0, "#5C0F0F"], [0.55, "#7A5012"], [0.75, "#1A4040"], [1, "#0E3B22"]],
-        zmin=50, zmax=100,
-        text=[[f"{v:.0f}%" for v in row] for row in pivot.values],
-        texttemplate="%{text}",
-        textfont=dict(family=FONT_MONO, size=12, color="#E8EDF2"),
-        hoverongaps=False,
-        hovertemplate="<b>%{y}</b> · %{x}<br>Kepatuhan: <b>%{z}%</b><extra></extra>",
-        showscale=True,
-        colorbar=dict(thickness=8, ticksuffix="%", outlinewidth=0,
-                      tickfont=dict(family=FONT_MONO, size=9, color=TEXT_SEC)),
-    ))
-    fig.update_layout(
-        paper_bgcolor=CHART_BG, plot_bgcolor=CHART_BG,
-        margin=dict(l=0, r=0, t=8, b=0), height=220,
-        font=dict(family=FONT_MAIN, color=TEXT_SEC),
-        xaxis=dict(tickfont=dict(family=FONT_MONO, size=11, color="#00D4FF"),
-                   side="top", showgrid=False),
-        yaxis=dict(tickfont=dict(family=FONT_MONO, size=10, color=TEXT_SEC),
-                   showgrid=False, autorange="reversed"),
-        hoverlabel=dict(bgcolor="#141A22", bordercolor="#00D4FF",
-                        font=dict(family=FONT_MONO, size=11, color="#E8EDF2")),
-    )
-    return fig
-
-
 def chart_apd_donut(summary: dict) -> go.Figure:
     values    = [
         summary["missing_helmet_count"],
