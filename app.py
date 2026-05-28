@@ -1,211 +1,176 @@
+"""
+app.py — APD Monitoring Dashboard v3.1
+Jalankan: streamlit run app.py
+
+v3.1:
+  - Sidebar dihapus (fix bug toggle tidak bisa dibuka)
+  - Quick stats dipindah ke header bar
+  - Page switch lebih cepat (backend check di-cache)
+"""
+
 import time
 import streamlit as st
 from datetime import datetime
 
-from config import REFRESH_INTERVAL, SHIFT_DISPLAY
+from config import REFRESH_INTERVAL
 from components.styles import inject_css
-from components.charts import (
-    chart_trend,
-    chart_apd_donut, chart_daily_violations,
-)
 from utils.data import fetch_data
-from utils.helpers import color_class, badge_html, apd_tags
+from views import monitor, analytics, log
 
-# PAGE CONFIG
-st.set_page_config(
-    page_title="APD Monitor — HSE Dashboard",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
 
-# AUTO-REFRESH
-def init_refresh():
-    if "last_refresh" not in st.session_state:
+# ── Fragment: live clock ───────────────────────────────────────────────────
+@st.fragment(run_every="1s")
+def live_clock():
+    """Update jam tiap detik tanpa re-render seluruh halaman."""
+    now     = datetime.now()
+    is_live = st.session_state.get("_is_live", False)
+    sc      = "status-live" if is_live else "status-demo"
+    sl      = "LIVE · BACKEND" if is_live else "DEMO · OFFLINE"
+
+    st.markdown(f"""
+    <div class="hse-clock">{now.strftime('%H:%M:%S')}</div>
+    <div class="hse-date">{now.strftime('%A, %d %B %Y')}</div>
+    <div class="{sc} status-pill">
+      <div class="status-dot"></div>{sl}
+    </div>""", unsafe_allow_html=True)
+
+    # Auto-refresh data
+    elapsed = time.time() - st.session_state.get("last_refresh", time.time())
+    if elapsed >= REFRESH_INTERVAL:
         st.session_state.last_refresh = time.time()
+        fetch_data.clear()
+        st.rerun()
 
-# MAIN
+
+# ── State init ─────────────────────────────────────────────────────────────
+def init_state():
+    if "page"         not in st.session_state: st.session_state.page         = "monitor"
+    if "last_refresh" not in st.session_state: st.session_state.last_refresh = time.time()
+    if "_is_live"     not in st.session_state: st.session_state._is_live     = False
+
+
+# ── Header ─────────────────────────────────────────────────────────────────
+def render_header(is_live: bool, summary: dict):
+    # Top bar: title + quick stats + clock
+    col_title, col_stats, col_clock = st.columns([2.5, 4.5, 1.5])
+
+    with col_title:
+        st.markdown("""
+        <div>
+          <p class="hse-title">APD Monitor</p>
+          <p class="hse-sub">HSE KPI Dashboard · PT Indonesia Epson Industry</p>
+        </div>""", unsafe_allow_html=True)
+
+    with col_stats:
+        comp  = summary.get("overall_compliance", 0)
+        unver = summary.get("unverified", 0)
+        total = summary.get("total_violations", 0)
+        comp_c = "#3DCC7E" if comp >= 87 else "#F5A623" if comp >= 75 else "#FF3B3B"
+        conn_c = "#3DCC7E" if is_live else "#F5A623"
+        conn_l = "LIVE" if is_live else "OFFLINE"
+
+        st.markdown(f"""
+        <div class="header-stats">
+          <div class="header-stat">
+            <span class="header-stat-label">Kepatuhan</span>
+            <span class="header-stat-value" style="color:{comp_c}">{comp}%</span>
+          </div>
+          <div class="header-stat-sep"></div>
+          <div class="header-stat">
+            <span class="header-stat-label">Pelanggaran</span>
+            <span class="header-stat-value" style="color:#FF3B3B">{total}</span>
+          </div>
+          <div class="header-stat-sep"></div>
+          <div class="header-stat">
+            <span class="header-stat-label">Verifikasi</span>
+            <span class="header-stat-value" style="color:#F5A623">{unver}</span>
+          </div>
+          <div class="header-stat-sep"></div>
+          <div class="header-stat">
+            <span class="header-stat-label">Backend</span>
+            <span class="header-stat-value" style="color:{conn_c}">{conn_l}</span>
+          </div>
+        </div>""", unsafe_allow_html=True)
+
+    with col_clock:
+        live_clock()
+
+    # Divider line with cyan gradient
+    st.markdown("""
+    <div style="position:relative;border-bottom:1px solid var(--border);
+                margin-bottom:.75rem;padding-top:.2rem">
+      <div style="position:absolute;bottom:-1px;left:0;width:220px;height:1px;
+                  background:linear-gradient(90deg,var(--cyan),transparent)"></div>
+    </div>""", unsafe_allow_html=True)
+
+
+# ── Nav buttons ────────────────────────────────────────────────────────────
+def render_nav():
+    cur = st.session_state.page
+    n1, n2, n3, _ = st.columns([1.6, 1, 1.4, 6])
+    with n1:
+        if st.button("Monitor & Verifikasi", use_container_width=True,
+                     type="primary" if cur == "monitor"   else "secondary",
+                     key="nav_monitor"):
+            st.session_state.page = "monitor"
+            st.rerun()
+    with n2:
+        if st.button("Analytics", use_container_width=True,
+                     type="primary" if cur == "analytics" else "secondary",
+                     key="nav_analytics"):
+            st.session_state.page = "analytics"
+            st.rerun()
+    with n3:
+        if st.button("Log Pelanggaran", use_container_width=True,
+                     type="primary" if cur == "log"       else "secondary",
+                     key="nav_log"):
+            st.session_state.page = "log"
+            st.rerun()
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+
+# ── Main ───────────────────────────────────────────────────────────────────
 def main():
     inject_css()
-    init_refresh()
+    init_state()
 
     summary, shift_compliance, df_trend, df_viol, is_live = fetch_data()
-    now = datetime.now()
 
-    # ── HEADER ──
-    sc = "status-live" if is_live else "status-demo"
-    sl = "LIVE · BACKEND" if is_live else "DEMO · BACKEND OFFLINE"
-    st.markdown(f"""
-    <div class="hse-header">
-      <div>
-        <p class="hse-title">APD Monitor</p>
-        <p class="hse-sub">HSE KPI Dashboard</p>
-      </div>
-      <div class="hse-meta">
-        <div class="hse-date">{now.strftime('%A, %d %B %Y')}</div>
-        <div class="{sc} status-pill"><div class="status-dot"></div>{sl}</div>
-      </div>
-    </div>""", unsafe_allow_html=True)
+    st.session_state._is_live = is_live
 
-    # Jam diupdate oleh while True di bawah
-    clock_placeholder = st.empty()
+    render_header(is_live, summary)
+    render_nav()
 
-    # KPI Cards 
-    st.markdown('<p class="section-label">KPI Utama</p>', unsafe_allow_html=True)
-    c1, c2, c3, c4 = st.columns(4)
-    compliance = summary["overall_compliance"]
-    comp_color = "green" if compliance >= 87 else "amber" if compliance >= 75 else "red"
-    total_v    = summary["total_violations"]
+    # Render halaman aktif
+    page = st.session_state.page
+    if page == "monitor":
+        monitor.render()
+    elif page == "analytics":
+        analytics.render(summary, shift_compliance, df_trend, is_live)
+    elif page == "log":
+        log.render(df_viol, is_live)
 
-    with c1:
-        st.markdown(f"""
-        <div class="kpi-card {comp_color}">
-          <span class="kpi-icon">⬡</span>
-          <p class="kpi-label">Kepatuhan Keseluruhan</p>
-          <p class="kpi-value">{compliance}%</p>
-          <p class="kpi-delta">dari foto yang diproses</p>
-        </div>""", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"""
-        <div class="kpi-card red">
-          <span class="kpi-icon">⚠</span>
-          <p class="kpi-label">Total Pelanggaran</p>
-          <p class="kpi-value">{total_v}</p>
-          <p class="kpi-delta">keseluruhan tercatat</p>
-        </div>""", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"""
-        <div class="kpi-card amber">
-          <span class="kpi-icon">◎</span>
-          <p class="kpi-label">Perlu Diverifikasi</p>
-          <p class="kpi-value">{summary['unverified']}</p>
-          <p class="kpi-delta">dari {total_v} total</p>
-        </div>""", unsafe_allow_html=True)
-    with c4:
-        st.markdown(f"""
-        <div class="kpi-card cyan">
-          <span class="kpi-icon">✓</span>
-          <p class="kpi-label">Sudah Diverifikasi</p>
-          <p class="kpi-value">{summary['verified']}</p>
-          <p class="kpi-delta"><span class="up">{summary['false_alarms']}</span> false alarm</p>
-        </div>""", unsafe_allow_html=True)
-
-    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
-
-    # Trend & Shift
-    col_t, col_s = st.columns([3, 1])
-    with col_t:
-        st.markdown('<div class="panel"><p class="panel-title">Trend Kepatuhan <span class="accent">30 Hari</span></p>', unsafe_allow_html=True)
-        st.plotly_chart(chart_trend(df_trend), use_container_width=True, config={"displayModeBar": False})
-        st.markdown("</div>", unsafe_allow_html=True)
-    with col_s:
-        st.markdown('<div class="panel"><p class="panel-title">Per <span class="accent">Shift</span></p>', unsafe_allow_html=True)
-        for name, time_range in SHIFT_DISPLAY.items():
-            rate = shift_compliance.get(name, 0.0)
-            cls  = color_class(rate)
-            st.markdown(f"""
-            <div class="shift-row">
-              <div><div class="shift-name">{name}</div><div class="shift-sub">{time_range}</div></div>
-              <div class="shift-bar-track"><div class="shift-bar-fill {cls}" style="width:{rate}%"></div></div>
-              <div class="shift-pct {cls}">{rate}%</div>
-            </div>""", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
-    # Heatmap + Donut + Bar
-    col_d, col_b = st.columns([1.2, 1.4])
-    with col_d:
-        st.markdown('<div class="panel"><p class="panel-title">Jenis <span class="accent">APD</span></p>', unsafe_allow_html=True)
-        st.plotly_chart(chart_apd_donut(summary), use_container_width=True, config={"displayModeBar": False})
-        st.markdown("</div>", unsafe_allow_html=True)
-    with col_b:
-        st.markdown('<div class="panel"><p class="panel-title">Pelanggaran <span class="accent">7 Hari</span></p>', unsafe_allow_html=True)
-        st.plotly_chart(chart_daily_violations(df_trend), use_container_width=True, config={"displayModeBar": False})
-        total_apd = (summary["missing_helmet_count"] +
-                     summary["missing_vest_count"] +
-                     summary["missing_mask_count"])
-        for apd, key, color in [
-            ("HELM",   "missing_helmet_count", "#FF3B3B"),
-            ("ROMPI",  "missing_vest_count",   "#F5A623"),
-            ("MASKER", "missing_mask_count",   "#00D4FF"),
-        ]:
-            count = summary[key]
-            pct   = round(count / total_apd * 100) if total_apd else 0
-            st.markdown(f"""
-            <div class="apd-row">
-              <div><div class="apd-name" style="color:{color}">{apd}</div><div class="apd-lbl">{pct}% dari total</div></div>
-              <div class="apd-count" style="color:{color}">{count}</div>
-            </div>""", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
-    # Tabel Violation
-    st.markdown('<p class="section-label">Pelanggaran Terbaru</p>', unsafe_allow_html=True)
-    fc1, fc2, _ = st.columns([1, 1, 4])
-    with fc1:
-        filter_status = st.selectbox("Status", ["Semua","unverified","verified","false_alarm"],
-                                     label_visibility="collapsed")
-    with fc2:
-        filter_shift = st.selectbox("Shift", ["Semua Shift","PAGI","SIANG","MALAM"],
-                                    label_visibility="collapsed")
-
-    df_show = df_viol.copy()
-    if not df_show.empty:
-        if filter_status != "Semua":
-            df_show = df_show[df_show["status"] == filter_status]
-        if filter_shift != "Semua Shift":
-            df_show = df_show[df_show["shift"] == filter_shift]
-
-    rows_html = ""
-    for _, row in df_show.head(12).iterrows():
-        rows_html += f"""
-        <tr>
-          <td><span style="font-family:'Fira Code';font-size:11px;color:var(--text-sec)">{row['time']}</span></td>
-          <td><b>{row['worker']}</b></td>
-          <td><span style="font-family:'Fira Code';font-size:11px;color:#00D4FF">{row['shift']}</span></td>
-          <td>{apd_tags(row['apd'])}</td>
-          <td>{badge_html(row['status'])}</td>
-        </tr>"""
-    if not rows_html:
-        rows_html = '<tr><td colspan="6" style="text-align:center;color:var(--text-dim);padding:24px">Tidak ada data</td></tr>'
-
-    st.markdown(f"""
-    <div class="panel">
-      <table class="vtable">
-        <thead><tr>
-          <th>Waktu</th><th>Pekerja</th>
-          <th>Shift</th><th>APD Dilanggar</th><th>Status</th>
-        </tr></thead>
-        <tbody>{rows_html}</tbody>
-      </table>
-    </div>""", unsafe_allow_html=True)
-
-    # FOOTER 
+    # Footer
+    sync_time = datetime.now().strftime("%H:%M:%S")
     st.markdown(f"""
     <hr class="hse-divider">
-    <div style="display:flex;justify-content:space-between">
+    <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:.5rem">
       <span style="font-family:'Fira Code';font-size:10px;color:var(--text-dim)">
-        APD MONITOR v1.1 · HSE EPSON MFG · {'LIVE DATA' if is_live else 'DEMO MODE'}
+        APD MONITOR v3.1 · HSE EPSON MFG · {'LIVE DATA' if is_live else 'DEMO MODE'}
       </span>
       <span style="font-family:'Fira Code';font-size:10px;color:var(--text-dim)">
-        Shift dihitung dari timestamp · Area dari camera_location
+        Capstone FILKOM UB 2026 · Kelompok 3 · Epson A.2
+      </span>
+      <span style="font-family:'Fira Code';font-size:10px;color:var(--text-dim)">
+        Sync: {sync_time} · Refresh tiap {REFRESH_INTERVAL}s
       </span>
     </div>""", unsafe_allow_html=True)
-
-    # LIVE CLOCK + AUTO REFRESH 
-    while True:
-        clock_placeholder.markdown(
-            f'<div class="hse-clock">{datetime.now().strftime("%H:%M:%S")}</div>',
-            unsafe_allow_html=True,
-        )
-        elapsed = time.time() - st.session_state.last_refresh
-        if elapsed >= REFRESH_INTERVAL:
-            st.session_state.last_refresh = time.time()
-            fetch_data.clear()
-            st.rerun()
-        time.sleep(1)
 
 
 if __name__ == "__main__":
+    st.set_page_config(
+        page_title="APD Monitor — HSE Dashboard",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
     main()
