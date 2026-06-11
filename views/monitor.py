@@ -1,9 +1,3 @@
-"""
-views/monitor.py — Monitor & Verifikasi
-Panel kiri: Live camera feed (MJPEG stream atau polling capture)
-Panel kanan: Antrian verifikasi pengawas K3
-"""
-
 import streamlit as st
 import requests
 from datetime import datetime
@@ -16,6 +10,9 @@ from utils.data import (
     verify_detection,
     _is_backend_alive,
 )
+
+# Module-level flag — diset oleh render() dari nilai yang sudah ditentukan app.py
+_backend_live = False
 
 
 def _apd_missing_label(det: dict) -> str:
@@ -53,8 +50,8 @@ def _render_live_feed():
         unsafe_allow_html=True,
     )
 
-    # Quick check — kalau backend mati, langsung tampilkan offline placeholder
-    if not _is_backend_alive():
+    # Quick check — pakai flag dari app.py, TANPA network call tambahan
+    if not _backend_live:
         st.markdown("""
         <div class="cam-offline">
           <div class="cam-offline-icon">&#x1F4F9;</div>
@@ -321,7 +318,10 @@ def _render_verification():
 # ══════════════════════════════════════════════════════════════════════════════
 # MAIN RENDER
 # ══════════════════════════════════════════════════════════════════════════════
-def render():
+def render(is_live: bool = False):
+    global _backend_live
+    _backend_live = is_live
+
     st.markdown('<p class="section-label">Monitor & Verifikasi</p>',
                 unsafe_allow_html=True)
 

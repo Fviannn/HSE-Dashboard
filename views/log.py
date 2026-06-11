@@ -1,16 +1,9 @@
-"""
-views/log.py — Log Pelanggara
-Tabel dengan filter status/shift/search + date range + pagination + export CSV.
-"""
-
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
 from utils.helpers import badge_html, apd_tags
 
-
 ROWS_PER_PAGE = 15
-
 
 def render(df_viol: pd.DataFrame, is_live: bool):
 

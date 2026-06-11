@@ -346,9 +346,12 @@ html, body, [data-testid="stAppViewContainer"] {
   font-family: 'Fira Code', monospace; font-size: 14px;
   font-weight: 500; width: 50px; text-align: right; flex-shrink: 0;
 }
-.good { background: var(--green); color: var(--green); }
-.warn { background: var(--amber); color: var(--amber); }
-.crit { background: var(--red);   color: var(--red);   }
+.shift-bar-fill.good { background: var(--green); }
+.shift-bar-fill.warn { background: var(--amber); }
+.shift-bar-fill.crit { background: var(--red);   }
+.shift-pct.good { color: var(--green); }
+.shift-pct.warn { color: var(--amber); }
+.shift-pct.crit { color: var(--red);   }
 
 /* ═══════════════════════════════════════════════════════════════════════
    APD ROW (sidebar donut detail)
@@ -409,7 +412,7 @@ html, body, [data-testid="stAppViewContainer"] {
    ═══════════════════════════════════════════════════════════════════════ */
 .hse-divider {
   border: none; border-top: 1px solid var(--border); margin: 1.5rem 0;
-}
+epson industy}
 
 /* Streamlit input styling */
 [data-testid="stTextInput"] input,

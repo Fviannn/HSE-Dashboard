@@ -1,13 +1,3 @@
-"""
-app.py — APD Monitoring Dashboard v3.1
-Jalankan: streamlit run app.py
-
-v3.1:
-  - Sidebar dihapus (fix bug toggle tidak bisa dibuka)
-  - Quick stats dipindah ke header bar
-  - Page switch lebih cepat (backend check di-cache)
-"""
-
 import time
 import streamlit as st
 from datetime import datetime
@@ -135,7 +125,7 @@ def main():
     init_state()
 
     summary, shift_compliance, df_trend, df_viol, is_live = fetch_data()
-
+  
     st.session_state._is_live = is_live
 
     render_header(is_live, summary)
@@ -144,7 +134,7 @@ def main():
     # Render halaman aktif
     page = st.session_state.page
     if page == "monitor":
-        monitor.render()
+        monitor.render(is_live)
     elif page == "analytics":
         analytics.render(summary, shift_compliance, df_trend, is_live)
     elif page == "log":

@@ -6,15 +6,11 @@ from datetime import datetime, timedelta
 
 from config import BACKEND_URL, REFRESH_INTERVAL, STREAM_URL
 
-
-# ─────────────────────────────────────────────────────────────────────────────
 # HELPER
-# ─────────────────────────────────────────────────────────────────────────────
 def _shift_from_hour(h: int) -> str:
     if 6 <= h < 14:  return "PAGI"
     if 14 <= h < 22:  return "SIANG"
     return "MALAM"
-
 
 def _parse_ts(raw: str):
     """Parse ISO timestamp string, return datetime or None."""
